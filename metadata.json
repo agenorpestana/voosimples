@@ -1,0 +1,6 @@
+{
+  "name": "VooSimples",
+  "description": "Simulador de provas da ANAC com aprendizado adaptativo, acompanhamento de progresso e painel administrativo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
