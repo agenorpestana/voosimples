@@ -58,10 +58,11 @@ const verifyUser = (req: express.Request, res: express.Response, next: express.N
 };
 
 // Login Route
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+    const [users]: any = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    const user = users[0];
     if (!user) {
       res.status(401).json({ error: 'Credenciais inválidas.' });
       return;
@@ -74,7 +75,7 @@ app.post('/api/auth/login', (req, res) => {
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role, plan: user.plan }, JWT_SECRET, { expiresIn: '1d' });
     
     // Log activity
-    db.prepare('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)').run(user.id, 'login', 'User logged in successfully');
+    await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [user.id, 'login', 'User logged in successfully']);
     
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan } });
   } catch (err: any) {
@@ -83,22 +84,22 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // Register Route
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { name, email, password, plan } = req.body;
   try {
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existing) {
+    const [existing]: any = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing && existing.length > 0) {
       res.status(400).json({ error: 'E-mail já cadastrado.' });
       return;
     }
     const passwordHash = bcrypt.hashSync(password, 10);
-    const result = db.prepare('INSERT INTO users (name, email, passwordHash, plan) VALUES (?, ?, ?, ?)').run(name, email, passwordHash, 'free');
+    const [result]: any = await db.query('INSERT INTO users (name, email, passwordHash, plan) VALUES (?, ?, ?, ?)', [name, email, passwordHash, 'free']);
     
     // Auto login
-    const user = { id: result.lastInsertRowid, name, email, role: 'user', plan: 'free' };
+    const user = { id: result.insertId, name, email, role: 'user', plan: 'free' };
     const token = jwt.sign(user, JWT_SECRET, { expiresIn: '1d' });
     
-    db.prepare('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)').run(user.id, 'register', 'User registered');
+    await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [user.id, 'register', 'User registered']);
     
     res.json({ token, user, intendedPlan: plan || 'free' });
   } catch (err: any) {
@@ -107,9 +108,9 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 // Admin Route: Get Users
-app.get('/api/admin/users', verifyAdmin, (req, res) => {
+app.get('/api/admin/users', verifyAdmin, async (req, res) => {
   try {
-    const users = db.prepare('SELECT id, name, email, role, plan, status, createdAt FROM users').all();
+    const [users]: any = await db.query('SELECT id, name, email, role, plan, status, createdAt FROM users');
     res.json(users);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -117,15 +118,15 @@ app.get('/api/admin/users', verifyAdmin, (req, res) => {
 });
 
 // Admin Route: Get Audit Logs
-app.get('/api/admin/logs', verifyAdmin, (req, res) => {
+app.get('/api/admin/logs', verifyAdmin, async (req, res) => {
   try {
-    const logs = db.prepare(`
+    const [logs]: any = await db.query(`
       SELECT audit_logs.*, users.name as userName, users.email as userEmail
       FROM audit_logs
       LEFT JOIN users ON audit_logs.userId = users.id
       ORDER BY timestamp DESC
       LIMIT 100
-    `).all();
+    `);
     res.json(logs);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -133,9 +134,9 @@ app.get('/api/admin/logs', verifyAdmin, (req, res) => {
 });
 
 // Admin Route: Get Settings
-app.get('/api/admin/settings', verifyAdmin, (req, res) => {
+app.get('/api/admin/settings', verifyAdmin, async (req, res) => {
   try {
-    const settingsRows = db.prepare('SELECT key, value FROM settings').all() as {key: string, value: string}[];
+    const [settingsRows]: any = await db.query('SELECT `key`, value FROM settings');
     const settings: Record<string, string> = {};
     for (const row of settingsRows) {
       settings[row.key] = row.value;
@@ -147,17 +148,26 @@ app.get('/api/admin/settings', verifyAdmin, (req, res) => {
 });
 
 // Admin Route: Update Settings
-app.post('/api/admin/settings', verifyAdmin, (req, res) => {
+app.post('/api/admin/settings', verifyAdmin, async (req, res) => {
   try {
     const { settings } = req.body;
-    const stmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
-    db.transaction(() => {
+    
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
       for (const key of Object.keys(settings)) {
-        stmt.run(key, settings[key]);
+        await connection.query('INSERT INTO settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', [key, settings[key]]);
       }
-    })();
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
     // @ts-ignore
-    db.prepare('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)').run(req.user.id, 'update_settings', 'Updated system settings');
+    await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [req.user.id, 'update_settings', 'Updated system settings']);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -187,14 +197,14 @@ app.post('/api/checkout', verifyUser, async (req, res) => {
     }
 
     // Retrieve Mercado Pago access token from settings
-    const tokenRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('MERCADO_PAGO_ACCESS_TOKEN') as any;
-    const mpToken = tokenRow ? tokenRow.value : process.env.MERCADO_PAGO_ACCESS_TOKEN;
+    const [tokenRows]: any = await db.query('SELECT value FROM settings WHERE `key` = ?', ['MERCADO_PAGO_ACCESS_TOKEN']);
+    const mpToken = tokenRows && tokenRows.length > 0 ? tokenRows[0].value : process.env.MERCADO_PAGO_ACCESS_TOKEN;
 
     if (!mpToken) {
       // For demonstration of the feature when no MP API key is set
       // we'll just simulate a payment by generating a fake link
       const fakeOrderId = uuidv4();
-      db.prepare('INSERT INTO orders (id, userId, plan, status) VALUES (?, ?, ?, ?)').run(fakeOrderId, user.id, plan, 'pending');
+      await db.query('INSERT INTO orders (id, userId, plan, status) VALUES (?, ?, ?, ?)', [fakeOrderId, user.id, plan, 'pending']);
       res.json({ init_point: `/simulated-payment?orderId=${fakeOrderId}` });
       return;
     }
@@ -203,7 +213,7 @@ app.post('/api/checkout', verifyUser, async (req, res) => {
     const preference = new Preference(client);
     
     const orderId = uuidv4();
-    db.prepare('INSERT INTO orders (id, userId, plan, status) VALUES (?, ?, ?, ?)').run(orderId, user.id, plan, 'pending');
+    await db.query('INSERT INTO orders (id, userId, plan, status) VALUES (?, ?, ?, ?)', [orderId, user.id, plan, 'pending']);
 
     const appUrl = process.env.APP_URL || ('http://localhost:' + PORT);
 
@@ -233,7 +243,7 @@ app.post('/api/checkout', verifyUser, async (req, res) => {
     });
 
     // Update order with preference ID
-    db.prepare('UPDATE orders SET mercadoPagoPreferenceId = ? WHERE id = ?').run(prefResponse.id, orderId);
+    await db.query('UPDATE orders SET mercadoPagoPreferenceId = ? WHERE id = ?', [prefResponse.id, orderId]);
 
     res.json({ init_point: prefResponse.init_point });
 
@@ -247,14 +257,12 @@ app.post('/api/checkout', verifyUser, async (req, res) => {
 app.post('/api/webhooks/mercadopago', async (req, res) => {
   try {
     const payment = req.body;
-    
-    // In a real scenario we should verify the signature
 
     if (payment.action === 'payment.created' || payment.type === 'payment') {
       const paymentId = payment.data.id;
       
-      const tokenRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('MERCADO_PAGO_ACCESS_TOKEN') as any;
-      const mpToken = tokenRow ? tokenRow.value : process.env.MERCADO_PAGO_ACCESS_TOKEN;
+      const [tokenRows]: any = await db.query('SELECT value FROM settings WHERE `key` = ?', ['MERCADO_PAGO_ACCESS_TOKEN']);
+      const mpToken = tokenRows && tokenRows.length > 0 ? tokenRows[0].value : process.env.MERCADO_PAGO_ACCESS_TOKEN;
       
       if (!mpToken) {
         res.status(200).send('OK');
@@ -269,12 +277,13 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
       const orderId = paymentData.external_reference;
       
       if (paymentData.status === 'approved') {
-        db.prepare('UPDATE orders SET status = ? WHERE id = ?').run('approved', orderId);
+        await db.query('UPDATE orders SET status = ? WHERE id = ?', ['approved', orderId]);
         
-        const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
+        const [orders]: any = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+        const order = orders[0];
         if (order) {
-           db.prepare('UPDATE users SET plan = ? WHERE id = ?').run(order.plan, order.userId);
-           db.prepare('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)').run(order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Mercado Pago`);
+           await db.query('UPDATE users SET plan = ? WHERE id = ?', [order.plan, order.userId]);
+           await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Mercado Pago`]);
         }
       }
     }
@@ -290,11 +299,12 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 app.post('/api/simulate-payment', async (req, res) => {
   try {
     const { orderId } = req.body;
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as any;
+    const [orders]: any = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    const order = orders[0];
     if (order) {
-      db.prepare('UPDATE orders SET status = ? WHERE id = ?').run('approved', orderId);
-      db.prepare('UPDATE users SET plan = ? WHERE id = ?').run(order.plan, order.userId);
-      db.prepare('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)').run(order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Simulated Payment`);
+      await db.query('UPDATE orders SET status = ? WHERE id = ?', ['approved', orderId]);
+      await db.query('UPDATE users SET plan = ? WHERE id = ?', [order.plan, order.userId]);
+      await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Simulated Payment`]);
       res.json({ success: true });
     } else {
       res.status(404).json({ error: 'Order not found' });
@@ -319,7 +329,7 @@ const server = app.listen(PORT, () => {
 });
 
 process.on('SIGTERM', () => {
-  server.close(() => {
-    db.close();
+  server.close(async () => {
+    await db.end();
   });
 });
