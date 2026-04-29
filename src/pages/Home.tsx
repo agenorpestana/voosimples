@@ -1,7 +1,21 @@
-import { Link } from 'react-router';
 import { CheckCircle, BookOpen, BarChart } from 'lucide-react';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router';
+import Planos from './Planos';
+import Ebooks from './Ebooks';
 
 export default function Home() {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (hash) {
+      const element = document.querySelector(hash);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [hash]);
+
   return (
     <div>
       {/* Hero Section */}
@@ -12,12 +26,12 @@ export default function Home() {
             Simulados atualizados, aprendizado adaptativo e acompanhamento de progresso completo para garantir sua aprovação.
           </p>
           <div className="flex justify-center gap-4">
-            <Link to="/planos" className="bg-yellow-400 text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-yellow-300 transition-colors shadow-lg">
+            <a href="#planos" className="bg-yellow-400 text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-yellow-300 transition-colors shadow-lg">
               Começar Grátis
-            </Link>
-            <Link to="/planos" className="bg-transparent border border-white text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-colors">
+            </a>
+            <a href="#planos" className="bg-transparent border border-white text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-colors">
               Ver Planos Premium
-            </Link>
+            </a>
           </div>
         </div>
       </section>
@@ -51,6 +65,16 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Planos Section */}
+      <section id="planos">
+        <Planos />
+      </section>
+
+      {/* Ebooks Section */}
+      <section id="ebooks" className="bg-white">
+        <Ebooks />
       </section>
     </div>
   );

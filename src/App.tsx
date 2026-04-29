@@ -1,7 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router';
 import Home from './pages/Home';
-import Planos from './pages/Planos';
-import Ebooks from './pages/Ebooks';
 import Contatos from './pages/Contatos';
 import Login from './pages/Login';
 import Cadastro from './pages/Cadastro';
@@ -27,8 +25,8 @@ export default function App() {
               </Link>
               <div className="flex items-center gap-6">
                 <Link to="/" className="hover:text-blue-200 transition-colors">Início</Link>
-                <Link to="/planos" className="hover:text-blue-200 transition-colors">Planos</Link>
-                <Link to="/ebooks" className="hover:text-blue-200 transition-colors">eBooks</Link>
+                <a href="/#planos" className="hover:text-blue-200 transition-colors">Planos</a>
+                <a href="/#ebooks" className="hover:text-blue-200 transition-colors">eBooks</a>
                 <Link to="/contatos" className="hover:text-blue-200 transition-colors">Contatos</Link>
                 
                 {user ? (
@@ -46,9 +44,9 @@ export default function App() {
                 ) : (
                   <div className="flex items-center gap-4 ml-4">
                     <Link to="/login" className="hover:text-blue-200 transition-colors font-medium">Entrar</Link>
-                    <Link to="/planos" className="bg-white text-blue-600 px-4 py-2 rounded-lg font-bold hover:bg-blue-50 transition-colors">
+                    <a href="/#planos" className="bg-white text-blue-600 px-4 py-2 rounded-lg font-bold hover:bg-blue-50 transition-colors">
                       Começar Grátis
-                    </Link>
+                    </a>
                   </div>
                 )}
               </div>
@@ -60,8 +58,6 @@ export default function App() {
         <main className="flex-1">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/planos" element={<Planos />} />
-            <Route path="/ebooks" element={<Ebooks />} />
             <Route path="/contatos" element={<Contatos />} />
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Cadastro />} />
