@@ -3,6 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router';
 import { Users, Activity, ShieldAlert, FileText, Settings } from 'lucide-react';
 
+import { defaultSiteContent } from '../hooks/useSiteContent';
+
 export default function Admin() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
@@ -11,6 +13,8 @@ export default function Admin() {
   const [logsList, setLogsList] = useState<any[]>([]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [saveMessage, setSaveMessage] = useState('');
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editUserData, setEditUserData] = useState({ status: '', plan: '' });
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -20,7 +24,7 @@ export default function Admin() {
 
     if (activeTab === 'users') fetchUsers();
     else if (activeTab === 'logs') fetchLogs();
-    else if (activeTab === 'settings') fetchSettings();
+    else if (activeTab === 'settings' || activeTab === 'site') fetchSettings();
   }, [user, activeTab, navigate]);
 
   const fetchUsers = async () => {
@@ -35,7 +39,15 @@ export default function Admin() {
 
   const fetchSettings = async () => {
     const res = await fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) setSettings(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      if (data.SITE_CONTENT) {
+        try {
+          data.SITE_CONTENT = JSON.stringify(JSON.parse(data.SITE_CONTENT), null, 2);
+        } catch(e) {}
+      }
+      setSettings(data);
+    }
   };
 
   const saveSettings = async () => {
@@ -65,6 +77,28 @@ export default function Admin() {
     }
   };
 
+  const updateUser = async () => {
+    try {
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(editUserData)
+      });
+      if (res.ok) {
+        setEditingUser(null);
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao atualizar usuário');
+      }
+    } catch (err: any) {
+      alert('Erro ao atualizar usuário');
+    }
+  };
+
   if (!user || user.role !== 'admin') return null;
 
   return (
@@ -86,6 +120,10 @@ export default function Admin() {
         <button onClick={() => setActiveTab('alerts')} className={`flex items-center gap-3 p-3 rounded-lg font-medium ${activeTab === 'alerts' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
           <ShieldAlert className="w-5 h-5" />
           Alertas de Segurança
+        </button>
+        <button onClick={() => setActiveTab('site')} className={`flex items-center gap-3 p-3 rounded-lg font-medium ${activeTab === 'site' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+          <FileText className="w-5 h-5" />
+          Site Textos e Planos
         </button>
         <button onClick={() => setActiveTab('settings')} className={`flex items-center gap-3 p-3 rounded-lg font-medium ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
           <Settings className="w-5 h-5" />
@@ -109,6 +147,7 @@ export default function Admin() {
                     <th className="p-4 font-medium text-gray-500">E-mail</th>
                     <th className="p-4 font-medium text-gray-500">Permissão</th>
                     <th className="p-4 font-medium text-gray-500">Plano</th>
+                    <th className="p-4 font-medium text-gray-500">Status</th>
                     <th className="p-4 font-medium text-gray-500">Ações</th>
                   </tr>
                 </thead>
@@ -123,14 +162,48 @@ export default function Admin() {
                         </span>
                       </td>
                       <td className="p-4 font-medium text-blue-600">{u.plan ? u.plan.toUpperCase() : 'FREE'}</td>
-                      <td className="p-4 text-blue-600 hover:underline cursor-pointer">Editar</td>
+                      <td className="p-4 font-medium text-gray-500 text-sm">
+                        <span className={`px-2 py-1 rounded-full ${u.status === 'active' ? 'bg-green-100 text-green-700' : u.status === 'inactive' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                          {u.status === 'active' ? 'Ativo' : u.status === 'inactive' ? 'Inativo' : 'Bloqueado'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-blue-600 hover:underline cursor-pointer" onClick={() => { setEditingUser(u); setEditUserData({ status: u.status || 'active', plan: u.plan || 'free' }); }}>Editar</td>
                     </tr>
                   ))}
                   {usersList.length === 0 && (
-                    <tr><td colSpan={5} className="p-4 text-center text-gray-500">Nenhum usuário encontrado.</td></tr>
+                    <tr><td colSpan={6} className="p-4 text-center text-gray-500">Nenhum usuário encontrado.</td></tr>
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Editar Usuário */}
+        {editingUser && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+              <h3 className="text-xl font-bold mb-4">Editar Usuário</h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select value={editUserData.status} onChange={e => setEditUserData({...editUserData, status: e.target.value})} className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-blue-600">
+                  <option value="active">Ativo</option>
+                  <option value="inactive">Inativo</option>
+                  <option value="blocked">Bloqueado</option>
+                </select>
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Plano</label>
+                <select value={editUserData.plan} onChange={e => setEditUserData({...editUserData, plan: e.target.value})} className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-blue-600">
+                  <option value="free">Free</option>
+                  <option value="premium">Premium PP/PC</option>
+                  <option value="vip">VIP Completo</option>
+                </select>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
+                <button onClick={updateUser} className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded font-bold">Salvar</button>
+              </div>
             </div>
           </div>
         )}
@@ -163,6 +236,36 @@ export default function Admin() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'site' && (
+          <div className="max-w-4xl">
+            <h2 className="text-2xl font-bold mb-6">Editor de Textos e Planos (Site)</h2>
+            {saveMessage && <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg">{saveMessage}</div>}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-sm text-gray-600">
+                  Edite o formato JSON abaixo para alterar textos do site, planos e eBooks. 
+                  Siga exatamente a estrutura JSON (aspas duplas, colchetes).
+                </p>
+                <button 
+                  onClick={() => setSettings({...settings, SITE_CONTENT: JSON.stringify(defaultSiteContent, null, 2)})}
+                  className="bg-gray-200 text-gray-800 px-3 py-1 text-sm rounded hover:bg-gray-300"
+                >
+                  Carregar Padrão Inicial
+                </button>
+              </div>
+              <textarea 
+                className="w-full h-[500px] border border-gray-300 rounded-lg p-4 font-mono text-sm focus:ring-2 focus:ring-blue-600"
+                value={settings.SITE_CONTENT || ''}
+                onChange={e => setSettings({...settings, SITE_CONTENT: e.target.value})}
+                placeholder="Ex: { &quot;heroTitle&quot;: &quot;...&quot; }"
+              />
+            </div>
+            <button onClick={saveSettings} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition">
+              Salvar Alterações do Site
+            </button>
           </div>
         )}
 

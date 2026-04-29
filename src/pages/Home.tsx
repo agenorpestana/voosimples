@@ -3,9 +3,11 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router';
 import Planos from './Planos';
 import Ebooks from './Ebooks';
+import { useSiteContent } from '../hooks/useSiteContent';
 
 export default function Home() {
   const { hash } = useLocation();
+  const content = useSiteContent();
 
   useEffect(() => {
     if (hash) {
@@ -21,9 +23,9 @@ export default function Home() {
       {/* Hero Section */}
       <section className="bg-blue-600 text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-6xl font-black mb-6">Prepare-se para a ANAC com o VooSimples</h1>
+          <h1 className="text-4xl md:text-6xl font-black mb-6">{content.heroTitle}</h1>
           <p className="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">
-            Simulados atualizados, aprendizado adaptativo e acompanhamento de progresso completo para garantir sua aprovação.
+            {content.heroSubtitle}
           </p>
           <div className="flex justify-center gap-4">
             <a href="#planos" className="bg-yellow-400 text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-yellow-300 transition-colors shadow-lg">

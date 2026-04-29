@@ -110,11 +110,39 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// Global App state routes here
+app.get('/api/site-settings', async (req, res) => {
+  try {
+    const [settingsRows]: any = await db.query('SELECT `key`, value FROM settings WHERE `key` IN ("SITE_CONTENT")');
+    const settings: Record<string, string> = {};
+    for (const row of settingsRows) {
+      settings[row.key] = row.value;
+    }
+    res.json(settings);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin Route: Get Users
 app.get('/api/admin/users', verifyAdmin, async (req, res) => {
   try {
     const [users]: any = await db.query('SELECT id, name, email, role, plan, status, createdAt FROM users');
     res.json(users);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin Route: Update User
+app.put('/api/admin/users/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, plan } = req.body;
+    await db.query('UPDATE users SET status = ?, plan = ? WHERE id = ?', [status, plan, id]);
+    // @ts-ignore
+    await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [req.user.id, 'update_user', `Updated user ${id} to status: ${status}, plan: ${plan}`]);
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -289,7 +317,7 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
         const [orders]: any = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
         const order = orders[0];
         if (order) {
-           await db.query('UPDATE users SET plan = ? WHERE id = ?', [order.plan, order.userId]);
+           await db.query('UPDATE users SET plan = ?, status = ? WHERE id = ?', [order.plan, 'active', order.userId]);
            await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Mercado Pago`]);
         }
       }
@@ -310,7 +338,7 @@ app.post('/api/simulate-payment', async (req, res) => {
     const order = orders[0];
     if (order) {
       await db.query('UPDATE orders SET status = ? WHERE id = ?', ['approved', orderId]);
-      await db.query('UPDATE users SET plan = ? WHERE id = ?', [order.plan, order.userId]);
+      await db.query('UPDATE users SET plan = ?, status = ? WHERE id = ?', [order.plan, 'active', order.userId]);
       await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Simulated Payment`]);
       res.json({ success: true });
     } else {
