@@ -276,6 +276,12 @@ else
 
     # Gerar um JWT_SECRET aleatório se não existir
     SECRET_KEY=$(openssl rand -base64 32)
+    if [ -f .env ]; then
+      EXISTING_SECRET=$(grep JWT_SECRET .env | cut -d '=' -f2 | tr -d '"')
+      if [ ! -z "$EXISTING_SECRET" ]; then
+        SECRET_KEY="$EXISTING_SECRET"
+      fi
+    fi
 
     cat > .env <<EOL
 PORT=${APP_PORT}
@@ -328,6 +334,8 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_cache_bypass \$http_upgrade;
     }
 

@@ -218,7 +218,10 @@ app.post('/api/checkout', verifyUser, async (req, res) => {
     const orderId = uuidv4();
     await db.query('INSERT INTO orders (id, userId, plan, status) VALUES (?, ?, ?, ?)', [orderId, user.id, plan, 'pending']);
 
-    let appUrl = process.env.APP_URL || req.headers.origin || `https://${req.headers.host || 'localhost:' + PORT}`;
+    let appUrl = process.env.APP_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.get('host')}`;
+    if (process.env.NODE_ENV === 'production' && appUrl.startsWith('http://')) {
+      appUrl = appUrl.replace('http://', 'https://');
+    }
     appUrl = appUrl.replace(/\/$/, '');
 
     const prefResponse = await preference.create({
