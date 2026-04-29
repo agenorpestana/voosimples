@@ -218,7 +218,8 @@ app.post('/api/checkout', verifyUser, async (req, res) => {
     const orderId = uuidv4();
     await db.query('INSERT INTO orders (id, userId, plan, status) VALUES (?, ?, ?, ?)', [orderId, user.id, plan, 'pending']);
 
-    const appUrl = process.env.APP_URL || ('http://localhost:' + PORT);
+    let appUrl = process.env.APP_URL || req.headers.origin || `https://${req.headers.host || 'localhost:' + PORT}`;
+    appUrl = appUrl.replace(/\/$/, '');
 
     const prefResponse = await preference.create({
       body: {
