@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 
 const app = express();
-const PORT = process.env.NODE_ENV === 'production' ? 3000 : 3001;
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 3000 : 3001);
 
 app.use(cors());
 app.use(express.json());
@@ -324,7 +324,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
 
