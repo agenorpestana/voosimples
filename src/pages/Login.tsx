@@ -17,7 +17,15 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
+      
+      const textResponse = await res.text();
+      let data;
+      try {
+        data = textResponse ? JSON.parse(textResponse) : {};
+      } catch(e) {
+        throw new Error('Servidor indisponível (502 Bad Gateway) ou resposta inválida. Tente novamente.');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Erro ao logar');
       
       login(data.user, data.token);

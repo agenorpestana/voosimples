@@ -48,9 +48,20 @@ export default function Admin() {
       if (res.ok) {
         setSaveMessage('Configurações salvas com sucesso!');
         setTimeout(() => setSaveMessage(''), 3000);
+      } else {
+        const errorText = await res.text();
+        console.error('Failed to save settings:', res.status, errorText);
+        let errorData = { error: errorText };
+        try {
+          if (errorText) errorData = JSON.parse(errorText);
+        } catch(e) {}
+        setSaveMessage('Erro ao salvar: ' + (errorData.error || 'Erro desconhecido.'));
+        setTimeout(() => setSaveMessage(''), 4000);
       }
     } catch(err) {
-      console.error(err);
+      console.error('Fetch error:', err);
+      setSaveMessage('Erro de conexão ao salvar.');
+      setTimeout(() => setSaveMessage(''), 4000);
     }
   };
 
