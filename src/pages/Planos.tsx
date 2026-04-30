@@ -59,7 +59,9 @@ export default function Planos() {
               <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
               <div className="text-4xl font-black mb-6">
                 R$ {plan.price}
-                <span className={`text-lg font-normal ${plan.isPopular ? 'text-blue-200' : plan.id === 'vip' ? 'text-gray-400' : 'text-gray-500'}`}>/mês</span>
+                <span className={`text-lg font-normal ${plan.isPopular ? 'text-blue-200' : plan.id === 'vip' ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {plan.cycle === 'anual' ? '/ano' : plan.cycle === 'vitalicio' ? ' (Vitalício)' : '/mês'}
+                </span>
               </div>
               <ul className="mb-8 space-y-4 flex-1">
                 {plan.features.split('\n').map((feature: string, i: number) => (

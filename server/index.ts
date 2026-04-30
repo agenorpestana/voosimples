@@ -111,6 +111,21 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Global App state routes here
+app.get('/api/user/me', verifyUser, async (req, res) => {
+  try {
+    // @ts-ignore
+    const userId = req.user.id;
+    const [users]: any = await db.query('SELECT id, name, email, role, plan, planCycle, planExpiration, createdAt FROM users WHERE id = ?', [userId]);
+    if (users.length > 0) {
+      res.json(users[0]);
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/site-settings', async (req, res) => {
   try {
     const [settingsRows]: any = await db.query('SELECT `key`, value FROM settings WHERE `key` IN ("SITE_CONTENT")');
@@ -288,6 +303,28 @@ app.post('/api/checkout', verifyUser, async (req, res) => {
   }
 });
 
+async function processPlanApproval(userId: number, planId: string, orderId: string, origin: string) {
+  let cycle = 'mensal';
+  try {
+    const [settingsRows]: any = await db.query('SELECT value FROM settings WHERE `key` = "SITE_CONTENT"');
+    if (settingsRows.length > 0) {
+      const siteData = JSON.parse(settingsRows[0].value);
+      const planInfo = siteData.plans?.find((p: any) => p.id === planId);
+      if (planInfo && planInfo.cycle) cycle = planInfo.cycle;
+    }
+  } catch(e) {}
+
+  let expirationSql = 'NULL';
+  if (cycle === 'mensal') {
+    expirationSql = 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 MONTH)';
+  } else if (cycle === 'anual') {
+    expirationSql = 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 YEAR)';
+  }
+
+  await db.query(`UPDATE users SET plan = ?, planCycle = ?, planExpiration = ${expirationSql}, status = 'active' WHERE id = ?`, [planId, cycle, userId]);
+  await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [userId, 'plan_upgrade', `Upgraded to ${planId} (${cycle}) via ${origin}`]);
+}
+
 // Mercado Pago Webhook
 app.post('/api/webhooks/mercadopago', async (req, res) => {
   try {
@@ -317,8 +354,7 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
         const [orders]: any = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
         const order = orders[0];
         if (order) {
-           await db.query('UPDATE users SET plan = ?, status = ? WHERE id = ?', [order.plan, 'active', order.userId]);
-           await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Mercado Pago`]);
+           await processPlanApproval(order.userId, order.plan, orderId, 'Mercado Pago');
         }
       }
     }
@@ -338,8 +374,7 @@ app.post('/api/simulate-payment', async (req, res) => {
     const order = orders[0];
     if (order) {
       await db.query('UPDATE orders SET status = ? WHERE id = ?', ['approved', orderId]);
-      await db.query('UPDATE users SET plan = ?, status = ? WHERE id = ?', [order.plan, 'active', order.userId]);
-      await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [order.userId, 'plan_upgrade', `Upgraded to ${order.plan} via Simulated Payment`]);
+      await processPlanApproval(order.userId, order.plan, orderId, 'Simulated Payment');
       res.json({ success: true });
     } else {
       res.status(404).json({ error: 'Order not found' });

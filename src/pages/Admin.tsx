@@ -234,7 +234,15 @@ export default function Admin() {
                   <input type="text" value={editingPlan.name} onChange={e => setEditingPlan({...editingPlan, name: e.target.value})} className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Preço Mensal (ex: 49,90 - use "0" se for grátis)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ciclo de Cobrança</label>
+                  <select value={editingPlan.cycle || 'mensal'} onChange={e => setEditingPlan({...editingPlan, cycle: e.target.value})} className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-600">
+                    <option value="mensal">Mensal</option>
+                    <option value="anual">Anual</option>
+                    <option value="vitalicio">Vitalício</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preço (ex: 49,90 - use "0" se for grátis)</label>
                   <input type="text" value={editingPlan.price} onChange={e => setEditingPlan({...editingPlan, price: e.target.value})} className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
@@ -356,7 +364,7 @@ export default function Admin() {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold">Planos</h3>
-                <button onClick={() => setEditingPlan({ id: Date.now().toString(), name: '', price: '0', features: '', isPopular: false, status: 'active' })} className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold hover:bg-blue-700">Adicionar Plano</button>
+                <button onClick={() => setEditingPlan({ id: Date.now().toString(), name: '', price: '0', cycle: 'mensal', features: '', isPopular: false, status: 'active' })} className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold hover:bg-blue-700">Adicionar Plano</button>
               </div>
               <div className="space-y-2">
                 {siteData.plans?.map((plan: any) => {
@@ -364,7 +372,7 @@ export default function Admin() {
                    return (
                     <div key={plan.id} className={`p-4 border rounded flex flex-col md:flex-row justify-between items-center gap-4 ${plan.status === 'inactive' ? 'bg-gray-50 opacity-60' : 'bg-white'}`}>
                       <div>
-                        <div className="font-bold">{plan.name} (R$ {plan.price}) {plan.status === 'inactive' && <span className="text-red-500 text-xs ml-2">INATIVO</span>}</div>
+                        <div className="font-bold">{plan.name} (R$ {plan.price}{plan.cycle ? ` - ${plan.cycle}` : ''}) {plan.status === 'inactive' && <span className="text-red-500 text-xs ml-2">INATIVO</span>}</div>
                         <div className="text-sm text-gray-500">ID: {plan.id} | Vinculado a {usersWithPlan} usuário(s)</div>
                       </div>
                       <div className="flex flex-wrap gap-2">

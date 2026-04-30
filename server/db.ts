@@ -25,10 +25,19 @@ export async function initDb() {
         passwordHash VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'user',
         plan VARCHAR(50) DEFAULT 'free',
+        planCycle VARCHAR(50) DEFAULT 'monthly',
+        planExpiration DATETIME DEFAULT NULL,
         status VARCHAR(50) DEFAULT 'active',
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    try {
+      await db.query('ALTER TABLE users ADD COLUMN planCycle VARCHAR(50) DEFAULT "monthly"');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await db.query('ALTER TABLE users ADD COLUMN planExpiration DATETIME DEFAULT NULL');
+    } catch (e) { /* ignore if exists */ }
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
