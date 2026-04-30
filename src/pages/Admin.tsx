@@ -12,6 +12,7 @@ export default function Admin() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [logsList, setLogsList] = useState<any[]>([]);
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [siteData, setSiteData] = useState<any>(null);
   const [saveMessage, setSaveMessage] = useState('');
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editUserData, setEditUserData] = useState({ status: '', plan: '' });
@@ -41,11 +42,13 @@ export default function Admin() {
     const res = await fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
       const data = await res.json();
+      let parsedSiteData = defaultSiteContent;
       if (data.SITE_CONTENT) {
         try {
-          data.SITE_CONTENT = JSON.stringify(JSON.parse(data.SITE_CONTENT), null, 2);
+          parsedSiteData = { ...defaultSiteContent, ...JSON.parse(data.SITE_CONTENT) };
         } catch(e) {}
       }
+      setSiteData(parsedSiteData);
       setSettings(data);
     }
   };
@@ -123,7 +126,7 @@ export default function Admin() {
         </button>
         <button onClick={() => setActiveTab('site')} className={`flex items-center gap-3 p-3 rounded-lg font-medium ${activeTab === 'site' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
           <FileText className="w-5 h-5" />
-          Site Textos e Planos
+          Configurações do Site
         </button>
         <button onClick={() => setActiveTab('settings')} className={`flex items-center gap-3 p-3 rounded-lg font-medium ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
           <Settings className="w-5 h-5" />
@@ -240,32 +243,197 @@ export default function Admin() {
         )}
 
         {activeTab === 'site' && (
-          <div className="max-w-4xl">
-            <h2 className="text-2xl font-bold mb-6">Editor de Textos e Planos (Site)</h2>
+          <div className="max-w-5xl pb-20">
+            <h2 className="text-2xl font-bold mb-6">Configurações do Site</h2>
             {saveMessage && <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg">{saveMessage}</div>}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <p className="text-sm text-gray-600">
-                  Edite o formato JSON abaixo para alterar textos do site, planos e eBooks. 
-                  Siga exatamente a estrutura JSON (aspas duplas, colchetes).
-                </p>
-                <button 
-                  onClick={() => setSettings({...settings, SITE_CONTENT: JSON.stringify(defaultSiteContent, null, 2)})}
-                  className="bg-gray-200 text-gray-800 px-3 py-1 text-sm rounded hover:bg-gray-300"
-                >
-                  Carregar Padrão Inicial
-                </button>
+            
+            {siteData && (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-bold mb-4">Textos do Banner Principal</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Título Principal</label>
+                      <input 
+                        className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-600"
+                        value={siteData.heroTitle || ''}
+                        onChange={e => setSiteData({...siteData, heroTitle: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Subtítulo secundário</label>
+                      <textarea 
+                        className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-600 h-24"
+                        value={siteData.heroSubtitle || ''}
+                        onChange={e => setSiteData({...siteData, heroSubtitle: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold">Planos de Assinatura</h3>
+                    <button onClick={() => {
+                        const newId = 'plano-' + Date.now();
+                        setSiteData({...siteData, plans: [...siteData.plans, { id: newId, name: 'Novo Plano', price: '0', features: '', active: true }]})
+                      }} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700">
+                      Adicionar Plano
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    {siteData.plans.map((plan: any, idx: number) => {
+                      const isLinked = usersList.some(u => u.plan === plan.id);
+                      return (
+                        <div key={idx} className={`p-5 pl-6 border-l-4 rounded-lg border border-gray-200 ${plan.active === false ? 'border-l-gray-400 bg-gray-50 opacity-70' : 'border-l-blue-600 bg-white'}`}>
+                          <div className="grid md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 mb-1">Código do Plano (ID)</label>
+                              <input value={plan.id} disabled className="w-full border border-gray-200 rounded p-2 bg-gray-100 text-sm" />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-gray-500 mb-1">Nome do Plano</label>
+                              <input value={plan.name} onChange={e => {
+                                  const newPlans = [...siteData.plans];
+                                  newPlans[idx].name = e.target.value;
+                                  setSiteData({...siteData, plans: newPlans});
+                                }} className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-600" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 mb-1">Preço (R$)</label>
+                              <input value={plan.price} onChange={e => {
+                                  const newPlans = [...siteData.plans];
+                                  newPlans[idx].price = e.target.value;
+                                  setSiteData({...siteData, plans: newPlans});
+                                }} className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-600" />
+                            </div>
+                          </div>
+                          
+                          <div className="mb-4">
+                            <label className="flex items-center cursor-pointer mb-2">
+                              <input type="checkbox" checked={plan.isPopular || false} onChange={e => {
+                                const newPlans = [...siteData.plans];
+                                newPlans[idx].isPopular = e.target.checked;
+                                setSiteData({...siteData, plans: newPlans});
+                              }} className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-600 rounded" />
+                              <span className="text-sm font-medium">✨ Marcar como Mais Popular (Destaque principal)</span>
+                            </label>
+                            
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">Funcionalidades (Uma por linha)</label>
+                            <textarea value={plan.features} onChange={e => {
+                                const newPlans = [...siteData.plans];
+                                newPlans[idx].features = e.target.value;
+                                setSiteData({...siteData, plans: newPlans});
+                              }} className="w-full border border-gray-300 rounded p-3 h-24 text-sm focus:ring-2 focus:ring-blue-600" />
+                          </div>
+                          
+                          <div className="flex justify-end items-center gap-3 border-t pt-4">
+                            {isLinked && <span className="text-xs text-gray-500 italic mr-auto">Vinculado a usuário(s). Exclusão desabilitada.</span>}
+                            <button onClick={() => {
+                                const newPlans = [...siteData.plans];
+                                newPlans[idx].active = plan.active === false ? true : false;
+                                setSiteData({...siteData, plans: newPlans});
+                              }} className={`${plan.active === false ? 'bg-blue-600 text-white' : 'bg-yellow-500 text-white'} px-4 py-2 rounded-lg font-medium text-sm`}>
+                              {plan.active === false ? 'Reativar Plano' : 'Inativar Plano'}
+                            </button>
+                            {!isLinked && (
+                              <button onClick={() => {
+                                const newPlans = siteData.plans.filter((_: any, i: number) => i !== idx);
+                                setSiteData({...siteData, plans: newPlans});
+                              }} className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm">
+                                Excluir
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold">Livros Digitais (eBooks)</h3>
+                    <button onClick={() => {
+                        const newId = Date.now();
+                        setSiteData({...siteData, ebooks: [...(siteData.ebooks||[]), { id: newId, title: 'Novo eBook', description: '', tag: '', active: true }]})
+                      }} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700">
+                      Adicionar eBook
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    {(siteData.ebooks || []).map((ebook: any, idx: number) => {
+                      return (
+                        <div key={idx} className={`p-5 border rounded-lg ${ebook.active === false ? 'opacity-70 bg-gray-50' : 'bg-white'}`}>
+                           <div className="grid md:grid-cols-3 gap-4 mb-3">
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-semibold text-gray-500 mb-1">Título do eBook</label>
+                                <input value={ebook.title} onChange={e => {
+                                    const newEbooks = [...siteData.ebooks];
+                                    newEbooks[idx].title = e.target.value;
+                                    setSiteData({...siteData, ebooks: newEbooks});
+                                  }} className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-600" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-500 mb-1">Tag (Ex: "Mais Vendido", "Novo")</label>
+                                <input value={ebook.tag || ''} onChange={e => {
+                                    const newEbooks = [...siteData.ebooks];
+                                    newEbooks[idx].tag = e.target.value;
+                                    setSiteData({...siteData, ebooks: newEbooks});
+                                  }} className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-600" />
+                              </div>
+                           </div>
+                           <div className="mb-4">
+                              <label className="block text-xs font-semibold text-gray-500 mb-1">Descrição</label>
+                              <input value={ebook.description} onChange={e => {
+                                  const newEbooks = [...siteData.ebooks];
+                                  newEbooks[idx].description = e.target.value;
+                                  setSiteData({...siteData, ebooks: newEbooks});
+                                }} className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-600" />
+                           </div>
+                           <div className="flex justify-end gap-3 border-t pt-4">
+                            <button onClick={() => {
+                                const newEbooks = [...siteData.ebooks];
+                                newEbooks[idx].active = ebook.active === false ? true : false;
+                                setSiteData({...siteData, ebooks: newEbooks});
+                              }} className={`${ebook.active === false ? 'bg-blue-600 text-white' : 'bg-yellow-500 text-white'} px-4 py-2 rounded-lg font-medium text-sm`}>
+                              {ebook.active === false ? 'Reativar eBook' : 'Inativar eBook'}
+                            </button>
+                            <button onClick={() => {
+                              const newEbooks = siteData.ebooks.filter((_: any, i: number) => i !== idx);
+                              setSiteData({...siteData, ebooks: newEbooks});
+                            }} className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm">
+                              Excluir
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="fixed bottom-0 right-0 p-6 bg-white border-t border-gray-200 w-full sm:w-[calc(100%-16rem)] flex justify-end shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                  <button onClick={() => {
+                      const newSettings = { ...settings, SITE_CONTENT: JSON.stringify(siteData) };
+                      setSettings(newSettings);
+                      fetch('/api/admin/settings', { 
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ settings: newSettings })
+                        }).then(res => {
+                            if (res.ok) {
+                              setSaveMessage('Alterações salvas e publicadas no site!');
+                              setTimeout(() => setSaveMessage(''), 4000);
+                            } else {
+                              setSaveMessage('Erro ao salvar as configurações.');
+                            }
+                        })
+                  }} className="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition shadow-lg text-lg">
+                    Publicar Alterações no Site
+                  </button>
+                </div>
               </div>
-              <textarea 
-                className="w-full h-[500px] border border-gray-300 rounded-lg p-4 font-mono text-sm focus:ring-2 focus:ring-blue-600"
-                value={settings.SITE_CONTENT || ''}
-                onChange={e => setSettings({...settings, SITE_CONTENT: e.target.value})}
-                placeholder="Ex: { &quot;heroTitle&quot;: &quot;...&quot; }"
-              />
-            </div>
-            <button onClick={saveSettings} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition">
-              Salvar Alterações do Site
-            </button>
+            )}
           </div>
         )}
 
