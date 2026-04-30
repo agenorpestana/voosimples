@@ -142,7 +142,7 @@ app.get('/api/site-settings', async (req, res) => {
 // Admin Route: Get Users
 app.get('/api/admin/users', verifyAdmin, async (req, res) => {
   try {
-    const [users]: any = await db.query('SELECT id, name, email, role, plan, status, createdAt FROM users');
+    const [users]: any = await db.query('SELECT id, name, email, role, plan, planCycle, planExpiration, status, createdAt FROM users');
     res.json(users);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -153,10 +153,50 @@ app.get('/api/admin/users', verifyAdmin, async (req, res) => {
 app.put('/api/admin/users/:id', verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, plan } = req.body;
-    await db.query('UPDATE users SET status = ?, plan = ? WHERE id = ?', [status, plan, id]);
+    const { status, plan, planCycle, planExpiration } = req.body;
+    
+    let query = 'UPDATE users SET status = ?, plan = ?';
+    let params: any[] = [status, plan];
+    
+    if (planCycle !== undefined) {
+      query += ', planCycle = ?';
+      params.push(planCycle);
+    }
+    
+    if (planExpiration !== undefined) {
+      query += ', planExpiration = ?';
+      params.push(planExpiration === '' ? null : planExpiration);
+    }
+    
+    query += ' WHERE id = ?';
+    params.push(id);
+
+    await db.query(query, params);
     // @ts-ignore
-    await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [req.user.id, 'update_user', `Updated user ${id} to status: ${status}, plan: ${plan}`]);
+    await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [req.user.id, 'update_user', `Updated user ${id} (status: ${status}, plan: ${plan})`]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin Route: Manual Payment
+app.post('/api/admin/users/:id/renew', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { plan, cycle } = req.body;
+    
+    let expirationSql = 'NULL';
+    if (cycle === 'mensal') {
+      expirationSql = 'DATE_ADD(COALESCE(planExpiration, CURRENT_TIMESTAMP), INTERVAL 1 MONTH)';
+    } else if (cycle === 'anual') {
+      expirationSql = 'DATE_ADD(COALESCE(planExpiration, CURRENT_TIMESTAMP), INTERVAL 1 YEAR)';
+    }
+
+    await db.query(`UPDATE users SET plan = ?, planCycle = ?, planExpiration = IF(planExpiration > CURRENT_TIMESTAMP, ${expirationSql}, IF('${cycle}' = 'mensal', DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 MONTH), IF('${cycle}' = 'anual', DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 YEAR), NULL))), status = 'active' WHERE id = ?`, [plan, cycle, id]);
+    
+    // @ts-ignore
+    await db.query('INSERT INTO audit_logs (userId, action, details) VALUES (?, ?, ?)', [req.user.id, 'manual_payment', `Registered manual payment for user ${id} (Plan: ${plan}, Cycle: ${cycle})`]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

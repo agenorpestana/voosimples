@@ -15,7 +15,7 @@ export default function Admin() {
   const [siteData, setSiteData] = useState<any>(null);
   const [saveMessage, setSaveMessage] = useState('');
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [editUserData, setEditUserData] = useState({ status: '', plan: '' });
+  const [editUserData, setEditUserData] = useState<any>({ status: '', plan: '', planCycle: '', planExpiration: '' });
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [editingEbook, setEditingEbook] = useState<any>(null);
 
@@ -110,6 +110,30 @@ export default function Admin() {
     }
   };
 
+  const handleManualPayment = async () => {
+    if (!confirm(`Deseja adicionar pagamento manual e estender o plano deste usuário?`)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${editingUser.id}/renew`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan: editUserData.plan, cycle: editUserData.planCycle || 'mensal' })
+      });
+      if (res.ok) {
+        alert('Pagamento manual registrado e plano estendido com sucesso!');
+        setEditingUser(null);
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao registrar pagamento manual');
+      }
+    } catch (err: any) {
+      alert('Erro ao registrar pagamento manual');
+    }
+  };
+
   if (!user || user.role !== 'admin') return null;
 
   return (
@@ -178,7 +202,7 @@ export default function Admin() {
                           {u.status === 'active' ? 'Ativo' : u.status === 'inactive' ? 'Inativo' : 'Bloqueado'}
                         </span>
                       </td>
-                      <td className="p-4 text-blue-600 hover:underline cursor-pointer" onClick={() => { setEditingUser(u); setEditUserData({ status: u.status || 'active', plan: u.plan || 'free' }); }}>Editar</td>
+                      <td className="p-4 text-blue-600 hover:underline cursor-pointer" onClick={() => { setEditingUser(u); setEditUserData({ status: u.status || 'active', plan: u.plan || 'free', planCycle: u.planCycle || 'mensal', planExpiration: u.planExpiration || '' }); }}>Editar</td>
                     </tr>
                   ))}
                   {usersList.length === 0 && (
@@ -203,16 +227,33 @@ export default function Admin() {
                   <option value="blocked">Bloqueado</option>
                 </select>
               </div>
-              <div className="mb-6">
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Plano</label>
                 <select value={editUserData.plan} onChange={e => setEditUserData({...editUserData, plan: e.target.value})} className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-blue-600">
                   <option value="free">Free</option>
                   {siteData?.plans?.map((p: any) => p.status !== 'inactive' ? <option key={p.id} value={p.id}>{p.name}</option> : null)}
                 </select>
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ciclo do Plano</label>
+                <select value={editUserData.planCycle} onChange={e => setEditUserData({...editUserData, planCycle: e.target.value})} className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-blue-600">
+                  <option value="mensal">Mensal</option>
+                  <option value="anual">Anual</option>
+                  <option value="vitalicio">Vitalício</option>
+                </select>
+              </div>
+              <div className="flex gap-2 justify-end mb-4">
                 <button onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
-                <button onClick={updateUser} className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded font-bold">Salvar</button>
+                <button onClick={updateUser} className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded font-bold">Salvar Dados</button>
+              </div>
+              
+              <div className="border-t pt-4">
+                <h4 className="font-bold text-sm text-gray-700 mb-2">Ações Rápidas</h4>
+                {editUserData.plan !== 'free' && (
+                  <button onClick={handleManualPayment} className="w-full py-2 bg-green-600 text-white hover:bg-green-700 rounded font-bold text-sm">
+                    {editUserData.planCycle === 'vitalicio' ? 'Ativar Plano Vitalício (Dinheiro)' : editUserData.planCycle === 'anual' ? '+ Adicionar 1 Ano (Dinheiro)' : '+ Adicionar 1 Mês (Dinheiro)'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
