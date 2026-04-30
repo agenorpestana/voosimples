@@ -281,6 +281,10 @@ export default function Admin() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tag/Selo (Opcional - ex: Novo, Mais Vendido)</label>
                   <input type="text" value={editingEbook.tag} onChange={e => setEditingEbook({...editingEbook, tag: e.target.value})} className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-600" />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">URL da Imagem da Capa (Opcional)</label>
+                  <input type="text" value={editingEbook.coverUrl || ''} onChange={e => setEditingEbook({...editingEbook, coverUrl: e.target.value})} className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-600" placeholder="https://exemplo.com/imagem.png" />
+                </div>
               </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setEditingEbook(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded font-medium">Cancelar</button>
@@ -381,7 +385,7 @@ export default function Admin() {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold">eBooks (Cards)</h3>
-                <button onClick={() => setEditingEbook({ id: Date.now().toString(), title: '', description: '', tag: '', status: 'active' })} className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold hover:bg-blue-700">Adicionar eBook</button>
+                <button onClick={() => setEditingEbook({ id: Date.now().toString(), title: '', description: '', tag: '', coverUrl: '', status: 'active' })} className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold hover:bg-blue-700">Adicionar eBook</button>
               </div>
               <div className="space-y-2">
                 {siteData.ebooks?.map((ebook: any) => (

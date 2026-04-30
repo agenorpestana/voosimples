@@ -53,7 +53,7 @@ export default function Planos() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
-          {content.plans.map((plan: any) => (
+          {content.plans.filter((p: any) => p.status !== 'inactive').map((plan: any) => (
             <div key={plan.id} className={`${plan.isPopular ? 'bg-blue-600 text-white shadow-xl transform -translate-y-4' : plan.id === 'vip' ? 'bg-gray-900 text-white shadow-lg' : 'bg-white p-8 rounded-2xl shadow-sm border border-gray-100'} p-8 rounded-2xl flex flex-col relative`}>
               {plan.isPopular && <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full text-sm font-bold">Mais Popular</div>}
               <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
